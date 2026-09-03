@@ -1,0 +1,21 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+backend/venv/
+*.egg-info/
+
+# Node / React
+frontend/node_modules/
+frontend/build/
+npm-debug.log*
+
+# Generated ML artifacts — regenerate with:
+#   python3 backend/preprocess_data.py
+#   python3 backend/model_training.py
+#   python3 backend/generate_report.py
+data/processed/
