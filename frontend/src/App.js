@@ -1,21 +1,34 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:5001';
 
-const combineFields = [
-  { label: 'Height (inches)', name: 'HGT' },
-  { label: 'Weight (lbs)', name: 'WGT' },
-  { label: 'BMI', name: 'BMI' },
-  { label: 'Wingspan (inches)', name: 'WNGSPN' },
-  { label: 'Standing Reach (inches)', name: 'STNDRCH' },
-  { label: 'Body Adiposity Ratio (%)', name: 'BAR' },
-  { label: 'Standing Vertical (inches)', name: 'STNDVERT' },
-  { label: 'Lane Agility (seconds)', name: 'LANE' },
-  { label: 'Sprint (seconds)', name: 'SPRINT' },
+const FIELD_GROUPS = [
+  {
+    title: 'Body measurements',
+    fields: [
+      { name: 'HGT', label: 'Height', unit: 'in' },
+      { name: 'WGT', label: 'Weight', unit: 'lbs' },
+      { name: 'BMI', label: 'BMI', unit: '' },
+      { name: 'WNGSPN', label: 'Wingspan', unit: 'in' },
+      { name: 'STNDRCH', label: 'Standing reach', unit: 'in' },
+      { name: 'BAR', label: 'Body adiposity ratio', unit: '%' },
+    ],
+  },
+  {
+    title: 'Athletic testing',
+    fields: [
+      { name: 'STNDVERT', label: 'Standing vertical', unit: 'in' },
+      { name: 'LANE', label: 'Lane agility', unit: 'sec' },
+      { name: 'SPRINT', label: '3/4 court sprint', unit: 'sec' },
+    ],
+  },
 ];
 
 const CATEGORY_ORDER = ['Bust', 'Role Player', 'Starter', 'Star'];
+
+const slugify = (label) => label.toLowerCase().replace(/\s+/g, '-');
 
 function App() {
   const [form, setForm] = useState({});
@@ -29,6 +42,7 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setResult(null);
     try {
       const res = await axios.post(`${API_URL}/predict`, form);
       setResult(res.data);
@@ -39,73 +53,144 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: 520, margin: 'auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <h1>NBA Draft Predictor</h1>
-      <p style={{ color: '#555' }}>
-        Enter a prospect's combine measurables to see a predicted career outcome tier.
-        Heads up: the project's <code>report/REPORT.md</code> found that combine
-        measurables alone barely predict career outcome — treat this as a demo of the
-        pipeline, not a scouting tool.
-      </p>
-      <form onSubmit={handleSubmit}>
-        {combineFields.map((field) => (
-          <div key={field.name} style={{ marginBottom: 12 }}>
-            <label>
-              {field.label}:<br />
-              <input
-                type="number"
-                step="any"
-                name={field.name}
-                value={form[field.name] || ''}
-                onChange={handleChange}
-                required
-                style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-              />
-            </label>
-          </div>
-        ))}
-        <button type="submit" disabled={loading} style={{ padding: '10px 20px', fontSize: 16 }}>
-          {loading ? 'Predicting...' : 'Predict'}
-        </button>
-      </form>
-      {result && !result.error && (
-        <div style={{ marginTop: 24, padding: 16, border: '1px solid #ccc', borderRadius: 8 }}>
-          <h2>Predicted category: {result.category}</h2>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
-            <tbody>
-              {CATEGORY_ORDER.map((cat) => (
-                <tr key={cat}>
-                  <td style={{ padding: '4px 0' }}>{cat}</td>
-                  <td style={{ padding: '4px 0' }}>
-                    <div style={{ background: '#eee', borderRadius: 4, overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${(result.probabilities[cat] || 0) * 100}%`,
-                          background: cat === result.category ? '#2980b9' : '#aaa',
-                          padding: '2px 6px',
-                          color: 'white',
-                          fontSize: 12,
-                          minWidth: 32,
-                          textAlign: 'right',
-                        }}
-                      >
-                        {Math.round((result.probabilities[cat] || 0) * 100)}%
+    <div className="page">
+      <header className="site-header">
+        <div className="site-header__inner">
+          <p className="eyebrow">NBA Draft Analytics</p>
+          <h1>Combine Outcome Predictor</h1>
+          <p>
+            Enter a prospect's combine measurables to see a predicted career
+            outcome tier, based on career data from past combine participants.
+          </p>
+        </div>
+      </header>
+
+      <main className="layout">
+        <section className="panel form-panel" aria-labelledby="form-heading">
+          <h2 id="form-heading" className="panel-heading">Prospect measurables</h2>
+          <p className="panel-description">All fields are required for a prediction.</p>
+
+          <form className="form" onSubmit={handleSubmit}>
+            {FIELD_GROUPS.map((group) => (
+              <fieldset className="field-group" key={group.title}>
+                <legend className="field-group__title">{group.title}</legend>
+                <div className="field-grid">
+                  {group.fields.map((field) => (
+                    <div className="field" key={field.name}>
+                      <label htmlFor={field.name}>{field.label}</label>
+                      <div className="field-input">
+                        <input
+                          id={field.name}
+                          type="number"
+                          step="any"
+                          name={field.name}
+                          value={form[field.name] || ''}
+                          onChange={handleChange}
+                          required
+                        />
+                        {field.unit && <span className="field-input__unit">{field.unit}</span>}
                       </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p>Predicted PPG: {result.predicted_ppg}</p>
-          <p>Predicted RPG: {result.predicted_rpg}</p>
-          <p>Predicted APG: {result.predicted_apg}</p>
-          <h3>Closest career comparison: {result.comparison}</h3>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading && <span className="spinner" aria-hidden="true" />}
+                {loading ? 'Predicting…' : 'Predict outcome'}
+              </button>
+              <span className="form-hint">Runs the trained model instantly</span>
+            </div>
+          </form>
+        </section>
+
+        <section className="panel results-panel" aria-live="polite">
+          {!loading && !result && (
+            <div className="empty-state">
+              <div className="empty-state__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3v18M3 12h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </div>
+              <p>Fill in the measurables and submit to see a predicted outcome.</p>
+            </div>
+          )}
+
+          {loading && (
+            <div>
+              <div className="skeleton" style={{ height: 22, width: '55%', marginBottom: 18 }} />
+              <div className="skeleton" style={{ height: 7, width: '100%', marginBottom: 9, borderRadius: 999 }} />
+              <div className="skeleton" style={{ height: 7, width: '100%', marginBottom: 9, borderRadius: 999 }} />
+              <div className="skeleton" style={{ height: 7, width: '100%', marginBottom: 9, borderRadius: 999 }} />
+              <div className="skeleton" style={{ height: 7, width: '100%', marginBottom: 20, borderRadius: 999 }} />
+              <div className="skeleton" style={{ height: 60, width: '100%' }} />
+            </div>
+          )}
+
+          {!loading && result && result.error && (
+            <div className="alert alert-error">{result.error}</div>
+          )}
+
+          {!loading && result && !result.error && (
+            <div className="results">
+              <div className="result-header">
+                <span className="result-header__label">Predicted category</span>
+                <span className={`badge badge--${slugify(result.category)}`}>{result.category}</span>
+              </div>
+
+              <div className="prob-list">
+                {CATEGORY_ORDER.map((cat) => {
+                  const pct = Math.round((result.probabilities[cat] || 0) * 100);
+                  const slug = slugify(cat);
+                  return (
+                    <div className={`prob-row ${cat === result.category ? 'prob-row--active' : ''}`} key={cat}>
+                      <span className="prob-row__label">{cat}</span>
+                      <div className="prob-row__track">
+                        <div className={`prob-row__fill prob-row__fill--${slug}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="prob-row__value">{pct}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <hr className="divider" />
+
+              <div className="stat-tiles">
+                <div className="stat-tile">
+                  <span className="stat-tile__value">{result.predicted_ppg}</span>
+                  <span className="stat-tile__label">PPG</span>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-tile__value">{result.predicted_rpg}</span>
+                  <span className="stat-tile__label">RPG</span>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-tile__value">{result.predicted_apg}</span>
+                  <span className="stat-tile__label">APG</span>
+                </div>
+              </div>
+
+              <div className="comparison">
+                <span className="comparison__label">Closest career comp</span>
+                <span className="comparison__value">{result.comparison}</span>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+
+      <footer className="disclaimer">
+        <div className="disclaimer__inner">
+          <p>
+            <strong>Reality check:</strong> our analysis (<code>report/REPORT.md</code>)
+            found that combine measurables alone barely predict career outcome — treat
+            this as a demo of the pipeline, not a scouting tool.
+          </p>
         </div>
-      )}
-      {result && result.error && (
-        <div style={{ marginTop: 24, color: 'red' }}>{result.error}</div>
-      )}
+      </footer>
     </div>
   );
 }
