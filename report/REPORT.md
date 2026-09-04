@@ -13,16 +13,23 @@ This report evaluates whether pre-draft NBA Combine measurables (height, weight,
 | Star | 77 |
 
 ## Can a model predict the outcome tier from combine measurables?
-A Random Forest classifier was trained on 9 combine measurables (height, weight, BMI, wingspan, standing reach, body adiposity ratio, standing vertical, lane agility, sprint) to predict the four-tier outcome category, on a held-out test set of 153 players (trained on 610).
-- **Model accuracy: 39.9%**
-- **Baseline accuracy (always guess "Role Player", the most common outcome): 42.5%**
-- 5-fold cross-validated accuracy: 40.4% ± 1.2%
+Three different model families were trained on the same 9 combine measurables (height, weight, BMI, wingspan, standing reach, body adiposity ratio, standing vertical, lane agility, sprint) to predict the four-tier outcome category: **Random Forest**, **Logistic Regression**, and **Gradient Boosting**. Each was hyperparameter-tuned with `GridSearchCV` (5-fold cross-validation) rather than run with default settings, specifically so a weak result couldn't be waved away as "wrong model" or "needed more tuning." The best-tuned model of each family was then evaluated on a held-out test set of 153 players (trained on 610).
 
-**The model does not beat the naive baseline.** In the test set it essentially collapsed to predicting "Role Player" for almost everyone (see confusion matrix in `data/processed/metrics.json`), correctly identifying 0 of the Stars and 0 of the Starters. Combine measurables alone do not give the model enough signal to separate future stars or busts from the middle of the pack.
+![Model comparison](figures/model_comparison.png)
 
-![Model accuracy vs baseline](figures/accuracy_vs_baseline.png)
+| Model | Tuned CV accuracy | Test accuracy |
+|---|---|---|
+| Random Forest | 42.3% | 37.2% |
+| Logistic Regression | 41.1% | 41.2% |
+| Gradient Boosting | 38.9% | 38.6% |
+
+**Baseline accuracy (always guess "Role Player", the most common outcome): 42.5%**
+
+**None of the three tuned model families beat the baseline.** The best of them (Random Forest) reached 42.3% ± 2.5% cross-validated accuracy — statistically indistinguishable from just guessing the most common outcome every time — and only 37.2% on the untouched test set. This isn't a quirk of one algorithm or under-tuned hyperparameters: a linear model, a bagged tree ensemble, and a boosted tree ensemble all land in the same place, after each was given a real grid search to find its best settings.
 
 ![Feature importance](figures/feature_importance.png)
+
+Permutation importance (how much accuracy drops when a feature's values are randomly shuffled) tells the same story: several measurables have *negative* importance, meaning the model does slightly **better** when that column is scrambled into noise. A feature the model is actually learning from should never hurt to keep.
 
 ## Do individual measurables correlate with career outcomes?
 Spearman correlation between each measurable and (a) career VORP and (b) career PPG, across all 763 matched players:
@@ -37,6 +44,6 @@ Spearman correlation between each measurable and (a) career VORP and (b) career 
 The box plots make the same point visually: the distribution of height, wingspan, vertical leap and sprint time is nearly identical whether a player ended up a Bust or a Star. The boxes barely move across categories.
 
 ## Conclusion
-**No — on their own, NBA Combine measurables do not meaningfully predict whether a prospect becomes a star, a solid role player, or a bust.** A model given only height, weight, wingspan, vertical leap, agility and sprint data cannot beat the trivial strategy of guessing the most common outcome for every player, and none of the individual measurables show a correlation with career value worth acting on. What the combine *does* capture is closer to **body type and position** than **talent or ceiling** — a longer, bigger player is more likely to be used as a big man who scores less per game, but that says nothing about whether he'll be good at that job. Draft evaluators lean on the combine for a reason (durability, positional fit, medical flags), but as a stand-alone predictor of career outcome, it has essentially no signal in this dataset.
+**No — on their own, NBA Combine measurables do not meaningfully predict whether a prospect becomes a star, a solid role player, or a bust.** Three different tuned model families cannot beat the trivial strategy of guessing the most common outcome for every player, and none of the individual measurables show a correlation with career value worth acting on. What the combine *does* capture is closer to **body type and position** than **talent or ceiling** — a longer, bigger player is more likely to be used as a big man who scores less per game, but that says nothing about whether he'll be good at that job. Draft evaluators lean on the combine for a reason (durability, positional fit, medical flags), but as a stand-alone predictor of career outcome, it has essentially no signal in this dataset.
 
-*Caveat:* this analysis uses only 9 physical/athletic testing measurables. It does not include college production, age, or scouting grades, any of which would likely predict career outcome far better than the combine alone.
+*Caveat:* this analysis uses only 9 physical/athletic testing measurables — the null result has now been checked against three model families and a hyperparameter search, but not against a richer feature set. It does not include college production, age, or scouting grades, any of which would likely predict career outcome far better than the combine alone.

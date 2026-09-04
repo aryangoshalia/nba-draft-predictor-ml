@@ -38,18 +38,27 @@ def correlation_table(df: pd.DataFrame, outcome: str) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("r", key=lambda s: s.abs(), ascending=False)
 
 
-def plot_accuracy_bar(metrics: dict):
-    labels = ["Model (Random Forest)", "Baseline (always guess\nmost common outcome)"]
-    values = [metrics["test_accuracy"], metrics["baseline_accuracy"]]
-    fig, ax = plt.subplots(figsize=(5, 4))
-    bars = ax.bar(labels, values, color=["#2980b9", "#7f8c8d"])
-    ax.set_ylabel("Accuracy on held-out test players")
+def plot_model_comparison(metrics: dict):
+    comparison = metrics["model_comparison"]
+    names = [m["name"] for m in comparison]
+    cv_acc = [m["cv_accuracy"] for m in comparison]
+    test_acc = [m["test_accuracy"] for m in comparison]
+
+    x = np.arange(len(names))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    ax.bar(x - width / 2, cv_acc, width, label="Tuned 5-fold CV accuracy", color="#2980b9")
+    ax.bar(x + width / 2, test_acc, width, label="Held-out test accuracy", color="#5da8d6")
+    ax.axhline(metrics["baseline_accuracy"], color="#7f8c8d", linestyle="--", linewidth=1.5,
+               label=f"Baseline ({metrics['baseline_accuracy']:.0%}, always guess majority class)")
+    ax.set_xticks(x)
+    ax.set_xticklabels(names)
+    ax.set_ylabel("Accuracy")
     ax.set_ylim(0, 1)
-    ax.set_title("Predicting outcome tier from combine measurables")
-    for b, v in zip(bars, values):
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.02, f"{v:.0%}", ha="center")
+    ax.set_title("Three tuned model families, none beat the baseline")
+    ax.legend(fontsize=9, loc="upper right")
     fig.tight_layout()
-    fig.savefig(f"{FIG_DIR}/accuracy_vs_baseline.png", dpi=150)
+    fig.savefig(f"{FIG_DIR}/model_comparison.png", dpi=150)
     plt.close(fig)
 
 
@@ -57,10 +66,12 @@ def plot_feature_importance(metrics: dict):
     importances = metrics["feature_importances"]
     labels = [FEATURE_LABELS[k] for k in importances.keys()]
     values = list(importances.values())
+    colors = ["#2980b9" if v >= 0 else "#c0392b" for v in values]
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    ax.barh(labels[::-1], values[::-1], color="#2980b9")
-    ax.set_xlabel("Relative importance in the (weak) model")
-    ax.set_title("Which combine measurables the model leaned on most")
+    ax.barh(labels[::-1], values[::-1], color=colors[::-1])
+    ax.axvline(0, color="black", linewidth=0.8)
+    ax.set_xlabel("Permutation importance (accuracy drop when shuffled)")
+    ax.set_title(f"What the winning model ({metrics['winning_model']}) leans on")
     fig.tight_layout()
     fig.savefig(f"{FIG_DIR}/feature_importance.png", dpi=150)
     plt.close(fig)
@@ -109,7 +120,7 @@ def main():
     corr_vorp = correlation_table(df, "VORP")
     corr_ppg = correlation_table(df, "PPG")
 
-    plot_accuracy_bar(metrics)
+    plot_model_comparison(metrics)
     plot_feature_importance(metrics)
     plot_correlation(corr_vorp, corr_ppg)
     plot_feature_by_category(df)
@@ -154,28 +165,43 @@ def main():
 
     lines.append("\n## Can a model predict the outcome tier from combine measurables?\n")
     lines.append(
-        f"A Random Forest classifier was trained on 9 combine measurables "
-        f"(height, weight, BMI, wingspan, standing reach, body adiposity ratio, "
-        f"standing vertical, lane agility, sprint) to predict the four-tier outcome "
-        f"category, on a held-out test set of {metrics['n_test']} players "
+        "Three different model families were trained on the same 9 combine measurables "
+        "(height, weight, BMI, wingspan, standing reach, body adiposity ratio, standing "
+        "vertical, lane agility, sprint) to predict the four-tier outcome category: "
+        "**Random Forest**, **Logistic Regression**, and **Gradient Boosting**. Each was "
+        "hyperparameter-tuned with `GridSearchCV` (5-fold cross-validation) rather than "
+        "run with default settings, specifically so a weak result couldn't be waved away "
+        "as \"wrong model\" or \"needed more tuning.\" The best-tuned model of each family "
+        f"was then evaluated on a held-out test set of {metrics['n_test']} players "
         f"(trained on {metrics['n_train']}).\n"
     )
     majority_class = cat_counts.idxmax()
+    lines.append(f"\n![Model comparison]({FIG_DIR.replace('report/', '')}/model_comparison.png)\n")
+    lines.append("\n| Model | Tuned CV accuracy | Test accuracy |\n|---|---|---|\n")
+    for m in metrics["model_comparison"]:
+        lines.append(f"| {m['name']} | {m['cv_accuracy']:.1%} | {m['test_accuracy']:.1%} |\n")
     lines.append(
-        f"- **Model accuracy: {metrics['test_accuracy']:.1%}**\n"
-        f"- **Baseline accuracy (always guess \"{majority_class}\", the most common outcome): "
+        f"\n**Baseline accuracy (always guess \"{majority_class}\", the most common outcome): "
         f"{metrics['baseline_accuracy']:.1%}**\n"
-        f"- 5-fold cross-validated accuracy: {metrics['cv_accuracy_mean']:.1%} ± {metrics['cv_accuracy_std']:.1%}\n"
     )
     lines.append(
-        "\n**The model does not beat the naive baseline.** In the test set it "
-        "essentially collapsed to predicting \"Role Player\" for almost everyone "
-        "(see confusion matrix in `data/processed/metrics.json`), correctly identifying "
-        "0 of the Stars and 0 of the Starters. Combine measurables alone do not give the "
-        "model enough signal to separate future stars or busts from the middle of the pack.\n"
+        f"\n**None of the three tuned model families beat the baseline.** The best of "
+        f"them ({metrics['winning_model']}) reached {metrics['cv_accuracy_mean']:.1%} ± "
+        f"{metrics['cv_accuracy_std']:.1%} cross-validated accuracy — statistically "
+        "indistinguishable from just guessing the most common outcome every time — and "
+        f"only {metrics['test_accuracy']:.1%} on the untouched test set. This isn't a "
+        "quirk of one algorithm or under-tuned hyperparameters: a linear model, a bagged "
+        "tree ensemble, and a boosted tree ensemble all land in the same place, after "
+        "each was given a real grid search to find its best settings.\n"
     )
-    lines.append(f"\n![Model accuracy vs baseline]({FIG_DIR.replace('report/', '')}/accuracy_vs_baseline.png)\n")
     lines.append(f"\n![Feature importance]({FIG_DIR.replace('report/', '')}/feature_importance.png)\n")
+    lines.append(
+        "\nPermutation importance (how much accuracy drops when a feature's values are "
+        "randomly shuffled) tells the same story: several measurables have *negative* "
+        "importance, meaning the model does slightly **better** when that column is "
+        "scrambled into noise. A feature the model is actually learning from should never "
+        "hurt to keep.\n"
+    )
 
     lines.append("\n## Do individual measurables correlate with career outcomes?\n")
     lines.append(
@@ -210,21 +236,23 @@ def main():
     lines.append("\n## Conclusion\n")
     lines.append(
         "**No — on their own, NBA Combine measurables do not meaningfully predict "
-        "whether a prospect becomes a star, a solid role player, or a bust.** A model "
-        "given only height, weight, wingspan, vertical leap, agility and sprint data "
-        "cannot beat the trivial strategy of guessing the most common outcome for every "
-        "player, and none of the individual measurables show a correlation with career "
-        "value worth acting on. What the combine *does* capture is closer to **body type "
-        "and position** than **talent or ceiling** — a longer, bigger player is more "
-        "likely to be used as a big man who scores less per game, but that says nothing "
-        "about whether he'll be good at that job. Draft evaluators lean on the combine "
-        "for a reason (durability, positional fit, medical flags), but as a stand-alone "
-        "predictor of career outcome, it has essentially no signal in this dataset.\n"
+        "whether a prospect becomes a star, a solid role player, or a bust.** Three "
+        "different tuned model families cannot beat the trivial strategy of guessing "
+        "the most common outcome for every player, and none of the individual "
+        "measurables show a correlation with career value worth acting on. What the "
+        "combine *does* capture is closer to **body type and position** than **talent "
+        "or ceiling** — a longer, bigger player is more likely to be used as a big man "
+        "who scores less per game, but that says nothing about whether he'll be good at "
+        "that job. Draft evaluators lean on the combine for a reason (durability, "
+        "positional fit, medical flags), but as a stand-alone predictor of career "
+        "outcome, it has essentially no signal in this dataset.\n"
     )
     lines.append(
-        "\n*Caveat:* this analysis uses only 9 physical/athletic testing measurables. "
-        "It does not include college production, age, or scouting grades, any of which "
-        "would likely predict career outcome far better than the combine alone.\n"
+        "\n*Caveat:* this analysis uses only 9 physical/athletic testing measurables — "
+        "the null result has now been checked against three model families and a "
+        "hyperparameter search, but not against a richer feature set. It does not "
+        "include college production, age, or scouting grades, any of which would likely "
+        "predict career outcome far better than the combine alone.\n"
     )
 
     with open(REPORT_PATH, "w") as f:
