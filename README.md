@@ -93,6 +93,13 @@ pip install -r backend/requirements-dev.txt
 pytest
 ```
 
+## Data sources
+
+- Pre-draft combine measurables: [NBA Draft Combine](https://www.kaggle.com/datasets/marcusfern/nba-draft-combine) (Kaggle, marcusfern)
+- Career averages: [20 Years of NBA Draft Data](https://www.kaggle.com/datasets/benwieland/nba-draft-data) (Kaggle, benwieland)
+
 ## License
 
-[MIT](LICENSE)
+Code: [MIT](LICENSE). The datasets in `data/raw/` are third-party and subject to
+their own licenses on Kaggle (see above) — this project's MIT license covers the
+code, not the data.
