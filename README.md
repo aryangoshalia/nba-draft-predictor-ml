@@ -12,9 +12,10 @@ and individual measurables show essentially no correlation with career value.
 ## Project structure
 
 ```
-data/raw/         Raw combine + career-average CSVs
+data/raw/          Raw combine + career-average CSVs
 data/processed/    Cleaned data + trained model files (generated, not hand-edited)
 backend/           Data pipeline, model training, report generation, Flask API
+backend/tests/     Unit tests for the data pipeline
 report/            The analysis report and its charts
 frontend/          React app: enter combine stats, get a prediction
 ```
@@ -80,3 +81,18 @@ career comparison. It talks to the API at `http://127.0.0.1:5001` by default —
 
 If you edit the raw CSVs in `data/raw/`, redo steps 2 (preprocess → train → report) and
 restart the API so it picks up the new model files.
+
+## Running the tests
+
+Tests cover the name-matching/disambiguation logic in `preprocess_data.py` — the
+trickiest part of the pipeline (accent normalization, and telling apart different real
+players who share a name). From the project root:
+
+```bash
+pip install -r backend/requirements-dev.txt
+pytest
+```
+
+## License
+
+[MIT](LICENSE)

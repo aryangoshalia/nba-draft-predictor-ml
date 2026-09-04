@@ -8,6 +8,7 @@ venv/
 .venv/
 backend/venv/
 *.egg-info/
+.pytest_cache/
 
 # Node / React
 frontend/node_modules/
