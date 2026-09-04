@@ -2,7 +2,9 @@ import pandas as pd
 import pytest
 
 from preprocess_data import (
+    FEATURE_COLUMNS,
     build_target,
+    clean_zero_as_missing,
     combine_name_to_first_last,
     match_combine_to_career,
     normalize_name,
@@ -89,6 +91,34 @@ class TestMatchCombineToCareer:
         assert len(pairs) == 1
         # The closer year (2010, diff=0) should win over 2011 (diff=1).
         assert pairs.iloc[0]["career_idx"] == 0
+
+
+class TestCleanZeroAsMissing:
+    def test_zero_in_feature_column_becomes_nan(self):
+        # Regression test: Kris Dunn's 2016 combine row has a literal 0.0
+        # for WGT and BMI in the raw CSV -- a missing measurement encoded
+        # as 0 instead of "NA". That must not be treated as a real 0 lb,
+        # 0 BMI prospect.
+        row = {col: 100.0 for col in FEATURE_COLUMNS}
+        row["WGT"] = 0.0
+        row["BMI"] = 0.0
+        df = pd.DataFrame([row])
+
+        cleaned = clean_zero_as_missing(df)
+
+        assert pd.isna(cleaned.loc[0, "WGT"])
+        assert pd.isna(cleaned.loc[0, "BMI"])
+        # Untouched feature columns keep their real (non-zero) values.
+        assert cleaned.loc[0, "HGT"] == 100.0
+
+    def test_nonzero_values_are_left_alone(self):
+        row = {col: 100.0 for col in FEATURE_COLUMNS}
+        df = pd.DataFrame([row])
+
+        cleaned = clean_zero_as_missing(df)
+
+        for col in FEATURE_COLUMNS:
+            assert cleaned.loc[0, col] == 100.0
 
 
 class TestBuildTarget:

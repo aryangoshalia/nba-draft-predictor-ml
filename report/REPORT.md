@@ -19,13 +19,13 @@ Three different model families were trained on the same 9 combine measurables (h
 
 | Model | Tuned CV accuracy | Test accuracy |
 |---|---|---|
-| Random Forest | 42.3% | 37.2% |
-| Logistic Regression | 41.1% | 41.2% |
-| Gradient Boosting | 38.9% | 38.6% |
+| Random Forest | 42.1% | 37.9% |
+| Logistic Regression | 40.8% | 41.2% |
+| Gradient Boosting | 39.0% | 38.6% |
 
 **Baseline accuracy (always guess "Role Player", the most common outcome): 42.5%**
 
-**None of the three tuned model families beat the baseline.** The best of them (Random Forest) reached 42.3% ± 2.5% cross-validated accuracy, statistically indistinguishable from just guessing the most common outcome every time, and only 37.2% on the untouched test set. This isn't a quirk of one algorithm or under-tuned hyperparameters: a linear model, a bagged tree ensemble, and a boosted tree ensemble all land in the same place, after each was given a real grid search to find its best settings.
+**None of the three tuned model families beat the baseline.** The best of them (Random Forest) reached 42.1% ± 2.2% cross-validated accuracy, statistically indistinguishable from just guessing the most common outcome every time, and only 37.9% on the untouched test set. This isn't a quirk of one algorithm or under-tuned hyperparameters: a linear model, a bagged tree ensemble, and a boosted tree ensemble all land in the same place, after each was given a real grid search to find its best settings.
 
 ![Feature importance](figures/feature_importance.png)
 

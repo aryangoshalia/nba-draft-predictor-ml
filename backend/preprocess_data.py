@@ -34,10 +34,6 @@ COMBINE_OUT_PATH = "data/processed/combine_processed.csv"
 CAREER_OUT_PATH = "data/processed/career_processed.csv"
 MERGED_OUT_PATH = "data/processed/player_data.csv"
 
-# Combine measurables kept as model features. Chosen for low missingness
-# (<15%) in the raw file -- SHUTTLE (63% missing), HANDL/HANDW/PAN (44%),
-# BENCH (36%) and BF (26%) are dropped because imputing that much of a
-# column would mostly be inventing data.
 FEATURE_COLUMNS = [
     "HGT", "WGT", "BMI", "WNGSPN", "STNDRCH", "BAR",
     "STNDVERT", "LANE", "SPRINT",
@@ -62,6 +58,13 @@ def normalize_name(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip()
 
 
+def clean_zero_as_missing(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for col in FEATURE_COLUMNS:
+        df.loc[df[col] == 0, col] = np.nan
+    return df
+
+
 def load_combine() -> pd.DataFrame:
     df = pd.read_csv(RAW_COMBINE_PATH)
     df["PLAYER"] = df["PLAYER"].apply(combine_name_to_first_last)
@@ -73,7 +76,8 @@ def load_combine() -> pd.DataFrame:
     for col in df.columns:
         if col not in ("PLAYER", "POS", "match_key"):
             df[col] = pd.to_numeric(df[col], errors="coerce")
-    return df
+
+    return clean_zero_as_missing(df)
 
 
 def load_career() -> pd.DataFrame:
@@ -104,13 +108,6 @@ def match_combine_to_career(combine: pd.DataFrame, career: pd.DataFrame) -> pd.D
 
 
 def build_target(career: pd.DataFrame) -> pd.Series:
-    """Bucket career VORP (Value Over Replacement Player) into quantile-based
-    outcome categories. VORP is a single cumulative advanced stat that
-    captures both quality of play and playing time earned, which is why it
-    is used as the outcome measure instead of a raw counting stat like PPG.
-    Quantile cutoffs (rather than hand-picked point totals) keep the label
-    definition data-driven instead of tuned to produce a preferred answer.
-    """
     q25, q70, q90 = career["VORP"].quantile([0.25, 0.70, 0.90])
 
     def categorize(vorp: float) -> str:

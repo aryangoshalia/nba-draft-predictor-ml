@@ -42,10 +42,6 @@ CATEGORY_ORDER = ["Bust", "Role Player", "Starter", "Star"]
 RANDOM_STATE = 42
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
-# Three different model families, each with its own small hyperparameter
-# grid. Logistic Regression is wrapped in a scaling Pipeline so the saved
-# artifact behaves like any other sklearn estimator (predict / predict_proba
-# / classes_) and the API doesn't need to know which model type won.
 MODEL_CANDIDATES = {
     "Random Forest": (
         RandomForestClassifier(random_state=RANDOM_STATE),
@@ -73,6 +69,18 @@ MODEL_CANDIDATES = {
 }
 
 
+BOUNDS_MARGIN = 0.15
+
+
+def compute_bounds(X: pd.DataFrame) -> dict:
+    bounds = {}
+    for col in FEATURE_COLUMNS:
+        lo, hi = X[col].min(), X[col].max()
+        pad = (hi - lo) * BOUNDS_MARGIN
+        bounds[col] = (round(float(lo - pad), 2), round(float(hi + pad), 2))
+    return bounds
+
+
 def tune_candidates(X_train, y_train):
     """Grid-search every candidate model family and return their fitted
     GridSearchCV objects, keyed by model name."""
@@ -98,18 +106,12 @@ def main():
     baseline.fit(X_train, y_train)
     baseline_accuracy = accuracy_score(y_test, baseline.predict(X_test))
 
-    # --- Tune each model family, select the winner by CV accuracy (not
-    # test accuracy, so the model comparison doesn't leak test-set info
-    # into model selection) ---
     print("Tuning candidate models (5-fold CV, grid search):")
     searches = tune_candidates(X_train, y_train)
 
     winner_name = max(searches, key=lambda n: searches[n].best_score_)
     winner_search = searches[winner_name]
     clf = winner_search.best_estimator_
-    # Pull the winner's own CV mean/std (from its best hyperparameter combo)
-    # instead of re-running cross_val_score separately -- that would CV over
-    # the full X/y, letting held-out test rows leak into training folds.
     winner_cv_mean = winner_search.cv_results_["mean_test_score"][winner_search.best_index_]
     winner_cv_std = winner_search.cv_results_["std_test_score"][winner_search.best_index_]
     print(f"\nWinner: {winner_name} (best CV accuracy {winner_search.best_score_:.3f})")
@@ -132,9 +134,6 @@ def main():
     report = classification_report(y_test, test_pred, labels=CATEGORY_ORDER, output_dict=True)
     cm = confusion_matrix(y_test, test_pred, labels=CATEGORY_ORDER)
 
-    # Permutation importance works for any model type (unlike
-    # feature_importances_, which only tree ensembles expose), so it stays
-    # valid no matter which candidate wins.
     perm = permutation_importance(clf, X_test, y_test, n_repeats=30, random_state=RANDOM_STATE)
     importances = dict(zip(FEATURE_COLUMNS, perm.importances_mean.round(4)))
     importances = dict(sorted(importances.items(), key=lambda kv: kv[1], reverse=True))
@@ -165,9 +164,6 @@ def main():
     with open("data/processed/metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
 
-    # --- Regressors: predicted career PPG/RPG/APG, for the "comparable
-    # player" lookup only. Fit on the full matched dataset since they
-    # aren't the thing being evaluated for accuracy. ---
     reg_kwargs = dict(n_estimators=150, max_depth=8, min_samples_leaf=3, random_state=RANDOM_STATE)
     ppg_reg = RandomForestRegressor(**reg_kwargs).fit(X, df["PPG"])
     rpg_reg = RandomForestRegressor(**reg_kwargs).fit(X, df["RPG"])
@@ -182,10 +178,13 @@ def main():
     joblib.dump(career_matrix, "data/processed/career_matrix.pkl")
     joblib.dump(df["PLAYER"].tolist(), "data/processed/career_players.pkl")
 
-    # Median feature values (for imputing missing frontend inputs) and
-    # the feature list, so the API and training stay in sync.
     joblib.dump(
-        {"feature_columns": FEATURE_COLUMNS, "medians": X.median().to_dict(), "class_order": CATEGORY_ORDER},
+        {
+            "feature_columns": FEATURE_COLUMNS,
+            "medians": X.median().to_dict(),
+            "class_order": CATEGORY_ORDER,
+            "bounds": compute_bounds(X),
+        },
         "data/processed/feature_meta.pkl",
     )
 
