@@ -12,7 +12,7 @@ REPORT_MD_PATH = "report/REPORT.md"
 REPORT_FIGURES_DIR = os.path.abspath("report/figures")
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
 
 category_model = joblib.load("data/processed/category_model.pkl")
 ppg_reg = joblib.load("data/processed/ppg_reg.pkl")
